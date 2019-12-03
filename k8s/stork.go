@@ -225,7 +225,7 @@ type ApplicationBackupRestoreOps interface {
 	// the backups triggered for this schedule and returns a map of successfull backups. The key of the
 	// map will be the schedule type and value will be list of backups for that schedule type.
 	// The caller is expected to validate if the returned map has all backups expected at that point of time
-	ValidateApplicationBackupSchedule(string, string, time.Duration, time.Duration) (
+	ValidateApplicationBackupSchedule(string, string, int, time.Duration, time.Duration) (
 		map[v1alpha1.SchedulePolicyType][]*v1alpha1.ScheduledApplicationBackupStatus, error)
 }
 
@@ -1374,7 +1374,7 @@ func (k *k8sOps) DeleteApplicationBackupSchedule(name string, namespace string) 
 	})
 }
 
-func (k *k8sOps) ValidateApplicationBackupSchedule(name string, namespace string, timeout, retryInterval time.Duration) (
+func (k *k8sOps) ValidateApplicationBackupSchedule(name string, namespace string, expectedSuccess int, timeout, retryInterval time.Duration) (
 	map[v1alpha1.SchedulePolicyType][]*v1alpha1.ScheduledApplicationBackupStatus, error) {
 	if err := k.initK8sClient(); err != nil {
 		return nil, err
@@ -1395,6 +1395,7 @@ func (k *k8sOps) ValidateApplicationBackupSchedule(name string, namespace string
 
 		failedBackups := make([]string, 0)
 		pendingBackups := make([]string, 0)
+		success := 0
 		for _, backupStatuses := range resp.Status.Items {
 			// The check below assumes that the status will not have a failed
 			// backup if the last one succeeded so just get the last status
@@ -1409,6 +1410,7 @@ func (k *k8sOps) ValidateApplicationBackupSchedule(name string, namespace string
 				}
 
 				if status.Status == v1alpha1.ApplicationBackupStatusSuccessful {
+					success++
 					continue
 				}
 
@@ -1431,10 +1433,14 @@ func (k *k8sOps) ValidateApplicationBackupSchedule(name string, namespace string
 			}
 		}
 
+		if success == expectedSuccess {
+			return resp.Status.Items, false, nil
+		}
+
 		if len(pendingBackups) > 0 {
 			return nil, true, &ErrFailedToValidateCustomSpec{
 				Name: name,
-				Cause: fmt.Sprintf("ApplicationBackupSchedule has certain migrations pending: %s",
+				Cause: fmt.Sprintf("ApplicationBackupSchedule has certain backups pending: %s",
 					pendingBackups),
 				Type: resp,
 			}
