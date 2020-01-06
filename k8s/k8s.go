@@ -12,8 +12,6 @@ import (
 
 	snap_v1 "github.com/kubernetes-incubator/external-storage/snapshot/pkg/apis/crd/v1"
 	snap_client "github.com/kubernetes-incubator/external-storage/snapshot/pkg/client"
-	"github.com/libopenstorage/stork/pkg/apis/stork/v1alpha1"
-	storkclientset "github.com/libopenstorage/stork/pkg/client/clientset/versioned"
 	"github.com/portworx/sched-ops/task"
 	"github.com/sirupsen/logrus"
 	apps_api "k8s.io/api/apps/v1beta2"
@@ -71,13 +69,10 @@ type Ops interface {
 	StorageClassOps
 	PersistentVolumeClaimOps
 	SnapshotOps
-	RuleOps
 	SecretOps
 	ConfigMapOps
 	EventOps
 	CRDOps
-	ClusterPairOps
-	MigrationOps
 	ObjectOps
 	SetConfig(config *rest.Config)
 }
@@ -375,16 +370,6 @@ type SnapshotOps interface {
 	ValidateSnapshotData(name string, retry bool, timeout, retryInterval time.Duration) error
 }
 
-// RuleOps is an interface to perform operations for k8s stork rule
-type RuleOps interface {
-	// GetRule fetches the given stork rule
-	GetRule(name, namespace string) (*v1alpha1.Rule, error)
-	// CreateRule creates the given stork rule
-	CreateRule(rule *v1alpha1.Rule) (*v1alpha1.Rule, error)
-	// DeleteRule deletes the given stork rule
-	DeleteRule(name, namespace string) error
-}
-
 // SecretOps is an interface to perform k8s Secret operations
 type SecretOps interface {
 	// GetSecret gets the secrets object given its name and namespace
@@ -417,32 +402,6 @@ type CRDOps interface {
 	CreateCRD(resource CustomResource) error
 	// ValidateCRD checks if the given CRD is registered
 	ValidateCRD(resource CustomResource, timeout, retryInterval time.Duration) error
-}
-
-// ClusterPairOps is an interface to perfrom k8s ClusterPair operations
-type ClusterPairOps interface {
-	// CreateClusterPair creates the ClusterPair
-	CreateClusterPair(*v1alpha1.ClusterPair) error
-	// GetClusterPair gets the ClusterPair
-	GetClusterPair(string) (*v1alpha1.ClusterPair, error)
-	// ListClusterPairs gets all the ClusterPairs
-	ListClusterPairs() (*v1alpha1.ClusterPairList, error)
-	// DeleteClusterPair deletes the ClusterPair
-	DeleteClusterPair(string) error
-}
-
-// MigrationOps is an interface to perfrom k8s Migration operations
-type MigrationOps interface {
-	// CreateMigration creates the Migration
-	CreateMigration(*v1alpha1.Migration) error
-	// GetMigration gets the Migration
-	GetMigration(string) (*v1alpha1.Migration, error)
-	// ListMigrations lists all the Migration
-	ListMigrations() (*v1alpha1.MigrationList, error)
-	// UpdateMigration updates the Migration
-	UpdateMigration(*v1alpha1.Migration) (*v1alpha1.Migration, error)
-	// DeleteMigration deletes the Migration
-	DeleteMigration(string) error
 }
 
 // ObjectOps is an interface to perform generic Object operations
@@ -482,7 +441,6 @@ var (
 type k8sOps struct {
 	client             *kubernetes.Clientset
 	snapClient         *rest.RESTClient
-	storkClient        storkclientset.Interface
 	apiExtensionClient apiextensionsclient.Interface
 	config             *rest.Config
 	dynamicInterface   dynamic.Interface
@@ -2625,35 +2583,6 @@ func (k *k8sOps) DeleteSnapshotData(name string) error {
 
 // Snapshot APIs - END
 
-// Rule APIs - BEGIN
-func (k *k8sOps) GetRule(name, namespace string) (*v1alpha1.Rule, error) {
-	if err := k.initK8sClient(); err != nil {
-		return nil, nil
-	}
-
-	return k.storkClient.Stork().Rules(namespace).Get(name, meta_v1.GetOptions{})
-}
-
-func (k *k8sOps) CreateRule(rule *v1alpha1.Rule) (*v1alpha1.Rule, error) {
-	if err := k.initK8sClient(); err != nil {
-		return nil, nil
-	}
-
-	return k.storkClient.Stork().Rules(rule.GetNamespace()).Create(rule)
-}
-
-func (k *k8sOps) DeleteRule(name, namespace string) error {
-	if err := k.initK8sClient(); err != nil {
-		return nil
-	}
-
-	return k.storkClient.Stork().Rules(namespace).Delete(name, &meta_v1.DeleteOptions{
-		PropagationPolicy: &deleteForegroundPolicy,
-	})
-}
-
-// Rule APIs - END
-
 // Secret APIs - BEGIN
 
 func (k *k8sOps) GetSecret(name string, namespace string) (*v1.Secret, error) {
@@ -2770,90 +2699,6 @@ func (k *k8sOps) UpdateConfigMap(configMap *v1.ConfigMap) (*v1.ConfigMap, error)
 }
 
 // ConfigMap APIs - END
-
-// ClusterPair APIs - BEGIN
-func (k *k8sOps) GetClusterPair(name string) (*v1alpha1.ClusterPair, error) {
-	if err := k.initK8sClient(); err != nil {
-		return nil, err
-	}
-
-	return k.storkClient.Stork().ClusterPairs().Get(name, meta_v1.GetOptions{})
-}
-
-func (k *k8sOps) ListClusterPairs() (*v1alpha1.ClusterPairList, error) {
-	if err := k.initK8sClient(); err != nil {
-		return nil, err
-	}
-
-	return k.storkClient.Stork().ClusterPairs().List(meta_v1.ListOptions{})
-}
-
-func (k *k8sOps) CreateClusterPair(pair *v1alpha1.ClusterPair) error {
-	if err := k.initK8sClient(); err != nil {
-		return err
-	}
-
-	_, err := k.storkClient.Stork().ClusterPairs().Create(pair)
-	return err
-}
-
-func (k *k8sOps) DeleteClusterPair(name string) error {
-	if err := k.initK8sClient(); err != nil {
-		return err
-	}
-
-	return k.storkClient.Stork().ClusterPairs().Delete(name, &meta_v1.DeleteOptions{
-		PropagationPolicy: &deleteForegroundPolicy,
-	})
-}
-
-// ClusterPair APIs - END
-
-// Migration APIs - BEGIN
-func (k *k8sOps) GetMigration(name string) (*v1alpha1.Migration, error) {
-	if err := k.initK8sClient(); err != nil {
-		return nil, err
-	}
-
-	return k.storkClient.Stork().Migrations().Get(name, meta_v1.GetOptions{})
-}
-
-func (k *k8sOps) ListMigrations() (*v1alpha1.MigrationList, error) {
-	if err := k.initK8sClient(); err != nil {
-		return nil, err
-	}
-
-	return k.storkClient.Stork().Migrations().List(meta_v1.ListOptions{})
-}
-
-func (k *k8sOps) CreateMigration(migration *v1alpha1.Migration) error {
-	if err := k.initK8sClient(); err != nil {
-		return err
-	}
-
-	_, err := k.storkClient.Stork().Migrations().Create(migration)
-	return err
-}
-
-func (k *k8sOps) DeleteMigration(name string) error {
-	if err := k.initK8sClient(); err != nil {
-		return err
-	}
-
-	return k.storkClient.Stork().Migrations().Delete(name, &meta_v1.DeleteOptions{
-		PropagationPolicy: &deleteForegroundPolicy,
-	})
-}
-
-func (k *k8sOps) UpdateMigration(migration *v1alpha1.Migration) (*v1alpha1.Migration, error) {
-	if err := k.initK8sClient(); err != nil {
-		return nil, err
-	}
-
-	return k.storkClient.Stork().Migrations().Update(migration)
-}
-
-// Migration APIs - END
 
 // Event APIs - BEGIN
 // CreateEvent puts an event into k8s etcd
@@ -3028,11 +2873,6 @@ func (k *k8sOps) loadClientFor(config *rest.Config) error {
 	}
 
 	k.snapClient, _, err = snap_client.NewClient(config)
-	if err != nil {
-		return err
-	}
-
-	k.storkClient, err = storkclientset.NewForConfig(config)
 	if err != nil {
 		return err
 	}

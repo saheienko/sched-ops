@@ -128,20 +128,6 @@
   version = "v5.2.0"
 
 [[projects]]
-  branch = "master"
-  digest = "1:cb0a01c2a3b764e8c68dc01df6c82cc6394b405134a4951591b83db99baf908a"
-  name = "github.com/libopenstorage/stork"
-  packages = [
-    "pkg/apis/stork",
-    "pkg/apis/stork/v1alpha1",
-    "pkg/client/clientset/versioned",
-    "pkg/client/clientset/versioned/scheme",
-    "pkg/client/clientset/versioned/typed/stork/v1alpha1",
-  ]
-  pruneopts = "UT"
-  revision = "abf1e99a5f902c630bbafdea4059ca1cfe318da2"
-
-[[projects]]
   digest = "1:33422d238f147d247752996a26574ac48dcf472976eda7f5134015f06bf16563"
   name = "github.com/modern-go/concurrent"
   packages = ["."]
@@ -481,8 +467,6 @@
   input-imports = [
     "github.com/kubernetes-incubator/external-storage/snapshot/pkg/apis/crd/v1",
     "github.com/kubernetes-incubator/external-storage/snapshot/pkg/client",
-    "github.com/libopenstorage/stork/pkg/apis/stork/v1alpha1",
-    "github.com/libopenstorage/stork/pkg/client/clientset/versioned",
     "github.com/sirupsen/logrus",
     "k8s.io/api/apps/v1beta2",
     "k8s.io/api/batch/v1",
